@@ -4,46 +4,28 @@
 
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
+#include "../common/shader_utils.h"
 
+
+GLuint vbo_triangle;
 GLuint program;
 GLint attribute_coord2d;
 
 bool init_resources(void) {
-	GLint compile_ok = GL_FALSE, link_ok = GL_FALSE;
+	GLfloat triangle_vertices[] = {
+		0.0, 0.8,
+		-0.8, -0.8,
+		0.8, -0.8,
+	};
+	glGenBuffers(1, &vbo_triangle);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), triangle_vertices, GL_STATIC_DRAW);
 
-	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-	const char *vs_source = 
-		"#version 120\n"
-		"attribute vec2 coord2d;					"
-		"void main(void) {							"
-		"  gl_Position = vec4(coord2d, 0.0, 1.0);	"
-		"}";
-	
-	glShaderSource(vs, 1, &vs_source, NULL);
-	glCompileShader(vs);
-	glGetShaderiv(vs, GL_COMPILE_STATUS, &compile_ok);
-	if (!compile_ok) {
-		std::cerr << "Error in vertex shader" << std::endl;
-		return false;
-	}
+	GLint link_ok = GL_FALSE;
 
-
-	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-	const char *fs_source =
-		//"#version 100\n"  // OpenGL ES 2.0
-		"#version 120\n"  // OpenGL 2.1
-		"void main(void) {        "
-		"  gl_FragColor[0] = 0.0; "
-		"  gl_FragColor[1] = 0.0; "
-		"  gl_FragColor[2] = 1.0; "
-		"}";
-	glShaderSource(fs, 1, &fs_source, NULL);
-	glCompileShader(fs);
-	glGetShaderiv(fs, GL_COMPILE_STATUS, &compile_ok);
-	if (!compile_ok) {
-		std::cerr << "Error in fragment shader" << std::endl;
-		return false;
-	}
+	GLuint vs, fs;
+	if ((vs = create_shader("triangle.v.glsl", GL_VERTEX_SHADER)) == 0) return false;
+	if ((fs = create_shader("triangle.f.glsl", GL_FRAGMENT_SHADER)) == 0) return false;
 
 
 	program = glCreateProgram();
@@ -53,6 +35,7 @@ bool init_resources(void) {
 	glGetProgramiv(program, GL_LINK_STATUS, &link_ok);
 	if(!link_ok){
 		std::cerr << "Error in glLinkProgram" << std::endl;
+		print_log(program);
 		return false;
 	}
 
@@ -62,8 +45,6 @@ bool init_resources(void) {
 		std::cerr << "Could not bind attribute " << attribute_name << std::endl;
 		return false;
 	}
-
-
 
 	return true;
 }
@@ -75,23 +56,25 @@ void render(SDL_Window* window){
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glUseProgram(program);
+
+
 	glEnableVertexAttribArray(attribute_coord2d);
-	GLfloat triangle_vertices[] = {
-	    0.0,  0.8,
-	   -0.8, -0.8,
-	    0.8, -0.8,
-	};
+
 	/* Describe our vertices array to OpenGL (it can't guess its format automatically) */
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
+
 	glVertexAttribPointer(
-		attribute_coord2d, // attribute
-		2,                 // number of elements per vertex, here (x,y)
-		GL_FLOAT,          // the type of each element
-		GL_FALSE,          // take our values as-is
-		0,                 // no extra data between each position
-		triangle_vertices  // pointer to the C array
+		attribute_coord2d,	// attribute
+		2,					// number of elements per vertex, here (x,y)
+		GL_FLOAT,			// the type of each element
+		GL_FALSE,			// take our values as-is
+		0,					// no extra data between each position
+		0					// offset of first element
 						  );
-	
-	/* Push each element in buffer_vertices to the vertex shader */
+
+	glDrawArrays(GL_TRIANGLES, 3, 6);
+
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 	
 	glDisableVertexAttribArray(attribute_coord2d);
@@ -102,6 +85,7 @@ void render(SDL_Window* window){
 
 void free_resouces(){
 	glDeleteProgram(program);
+	glDeleteBuffers(1, &vbo_triangle);
 }
 
 void mainLoop(SDL_Window* window){
@@ -117,10 +101,25 @@ void mainLoop(SDL_Window* window){
 
 int main(int argc, char * argv[]) {
 	SDL_Init(SDL_INIT_VIDEO);
-	SDL_Window* window = SDL_CreateWindow("My First Triangle",
-		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480,
+	SDL_Window* window = SDL_CreateWindow("My Second Triangle",
+		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+		640, 480,
 		SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
-	SDL_GL_CreateContext(window);
+
+	if (window == NULL){
+		std::cerr << "Error: can't create window: " << SDL_GetError() << std::endl;
+		return EXIT_FAILURE;
+	}
+
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+
+	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 1);
+	if(SDL_GL_CreateContext(window) == NULL) {
+		std::cerr << "Error: SDL_GL_CreateContext: " << SDL_GetError() << std::endl;
+		return EXIT_FAILURE;
+	}
+
+
 
 	GLenum glew_status = glewInit();
 	if (glew_status != GLEW_OK){
@@ -128,8 +127,17 @@ int main(int argc, char * argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	if (!GLEW_VERSION_2_0)
+	{
+		std::cerr << "Error: your graphic card does not support OpenGL 2.0" << std::endl;
+		return EXIT_FAILURE;
+	}
+
 	if (!init_resources())
 		return EXIT_FAILURE;
+	
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	mainLoop(window);
 
