@@ -43,15 +43,15 @@ bool init_resources(void)
 
 	GLfloat cube_colors[] = {
 		// front colors
-		0.0, 0.0, 0.0,
 		1.0, 0.0, 0.0,
+		1.0, 1.0, 1.0,
+		1.0, 1.0, 1.0,
+		1.0, 0.0, 0.0,
+		// back colors
+		0.0, 0.0, 1.0,
+		0.0, 1.0, 0.0,
 		0.0, 1.0, 0.0,
 		0.0, 0.0, 1.0,
-		// back colors
-		1.0, 1.0, 0.0,
-		0.0, 1.0, 1.0,
-		1.0, 0.0, 1.0,
-		1.0, 1.0, 1.0,
 	};
 	glGenBuffers(1, &vbo_cube_colors);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_colors);

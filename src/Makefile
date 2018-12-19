@@ -1,9 +1,9 @@
 LDLIBS= -lGLEW -lGL -lSDL2
 
-all: triangle
+all: cube
 
-triangle: shader_utils.cpp
+cube: shader_utils.cpp
 
 clean:
-	rm -f *.o triangle
+	rm -f *.o cube
 .PHONY: all clean
