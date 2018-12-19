@@ -4,22 +4,79 @@
 
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include "../common/shader_utils.h"
 
 
-GLuint vbo_triangle;
+struct attributes {
+	GLfloat coord2d[3];
+	GLfloat v_color[3];
+};
+
+
 GLuint program;
-GLint attribute_coord2d;
+GLint attribute_coord3d, attribute_v_color, uniform_fade; 
+GLint uniform_m_transform;
+
+
+GLuint ibo_cube_elements;					//t5
+GLuint vbo_cube_vertices, vbo_cube_colors;	
+
 
 bool init_resources(void) {
-	GLfloat triangle_vertices[] = {
-		0.0, 0.8,
-		-0.8, -0.8,
-		0.8, -0.8,
+	GLfloat cube_vertices[] = {
+		// front
+		-1.0, -1.0,  1.0,
+		1.0, -1.0,  1.0,
+		1.0,  1.0,  1.0,
+		-1.0,  1.0,  1.0,
+		// back
+		-1.0, -1.0, -1.0,
+		1.0, -1.0, -1.0,
+		1.0,  1.0, -1.0,
+		-1.0,  1.0, -1.0,
 	};
-	glGenBuffers(1, &vbo_triangle);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices), triangle_vertices, GL_STATIC_DRAW);
+
+	GLfloat cube_colors[] = {
+		// front colors
+		1.0, 0.0, 0.0,
+		0.0, 1.0, 0.0,
+		0.0, 0.0, 1.0,
+		1.0, 1.0, 1.0,
+		// back colors
+		1.0, 0.0, 0.0,
+		0.0, 1.0, 0.0,
+		0.0, 0.0, 1.0,
+		1.0, 1.0, 1.0,
+	};
+
+	GLushort cube_elements[] = {
+		// front
+		0, 1, 2,
+		2, 3, 0,
+		// right
+		1, 5, 6,
+		6, 2, 1,
+		// back
+		7, 6, 5,
+		5, 4, 7,
+		// left
+		4, 0, 3,
+		3, 7, 4,
+		// bottom
+		4, 5, 1,
+		1, 0, 4,
+		// top
+		3, 2, 6,
+		6, 7, 3,
+	};
+	glGenBuffers(1, &ibo_cube_elements);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_cube_elements);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cube_elements), cube_elements, GL_STATIC_DRAW);
 
 	GLint link_ok = GL_FALSE;
 
@@ -39,12 +96,35 @@ bool init_resources(void) {
 		return false;
 	}
 
-	const char* attribute_name = "coord2d";
-	attribute_coord2d = glGetAttribLocation(program, attribute_name);
-	if (attribute_coord2d == -1) {
+	const char* attribute_name = "coord3d";
+	attribute_coord3d = glGetAttribLocation(program, attribute_name);
+	if (attribute_coord3d == -1) {
 		std::cerr << "Could not bind attribute " << attribute_name << std::endl;
 		return false;
 	}
+
+	attribute_name = "v_color";
+	attribute_v_color = glGetAttribLocation(program, attribute_name);
+	if (attribute_v_color == -1) {
+		std::cerr << "Could not bind attribute " << attribute_name << std::endl;
+		return false;
+	}
+
+	const char * uniform_name;
+	// uniform_name = "fade";
+	// uniform_fade = glGetUniformLocation(program, uniform_name);
+	// if (uniform_fade == -1) {
+	// 	std::cerr << "Could not bind uniform_fade " << uniform_name << std::endl;
+	// 	return false;
+	// }
+
+	uniform_name = "m_transform";
+	uniform_m_transform = glGetUniformLocation(program, uniform_name);
+	if (uniform_m_transform == -1) {
+		std::cerr << "Could not bind uniform " << uniform_name << std::endl;
+		return false;
+	}
+	
 
 	return true;
 }
@@ -58,29 +138,57 @@ void render(SDL_Window* window){
 	glUseProgram(program);
 
 
-	glEnableVertexAttribArray(attribute_coord2d);
 
 	/* Describe our vertices array to OpenGL (it can't guess its format automatically) */
-
+	glEnableVertexAttribArray(attribute_coord3d);
+	glEnableVertexAttribArray(attribute_v_color);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_triangle);
 
 	glVertexAttribPointer(
-		attribute_coord2d,	// attribute
-		2,					// number of elements per vertex, here (x,y)
+		attribute_coord3d,	// attribute
+		3,					// number of elements per vertex, here (x,y)
 		GL_FLOAT,			// the type of each element
 		GL_FALSE,			// take our values as-is
-		0,					// no extra data between each position
+		sizeof(struct attributes),	// no extra data between each position
 		0					// offset of first element
-						  );
+		);
 
-	glDrawArrays(GL_TRIANGLES, 3, 6);
+	glVertexAttribPointer(
+		attribute_v_color, // attribute
+		3,                 // number of elements per vertex, here (r,g,b)
+		GL_FLOAT,          // the type of each element
+		GL_FALSE,          // take our values as-is
+		sizeof(struct attributes),		// next color appears every 5 floats
+		(GLvoid*) offsetof(struct attributes, v_color)	// offset of first element
+	);
+
 
 	glDrawArrays(GL_TRIANGLES, 0, 3);
+
 	
-	glDisableVertexAttribArray(attribute_coord2d);
+	glDisableVertexAttribArray(attribute_coord3d);
+	glDisableVertexAttribArray(attribute_v_color);
 
 	/* Display the result */
 	SDL_GL_SwapWindow(window);
+}
+
+void logic()
+{
+	float move = sinf(SDL_GetTicks() / 1000.0 * (2*3.14) /5);
+
+	float angle = SDL_GetTicks() / 1000.0 * 45;
+
+
+	glm:: vec3 axis_z(0,0,1);
+	glm::mat4 m_transform = 
+		glm::translate(glm::mat4(1.0f), glm::vec3(move, 0.0, 0.0))
+		* glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis_z);
+
+	glUseProgram(program);
+	glUniformMatrix4fv(uniform_m_transform, 1, GL_FALSE, glm::value_ptr(m_transform));
+
+	
 }
 
 void free_resouces(){
@@ -95,6 +203,7 @@ void mainLoop(SDL_Window* window){
 			if (ev.type == SDL_QUIT)
 				return;
 		}
+		logic();
 		render(window);	
 	}
 }
@@ -118,8 +227,6 @@ int main(int argc, char * argv[]) {
 		std::cerr << "Error: SDL_GL_CreateContext: " << SDL_GetError() << std::endl;
 		return EXIT_FAILURE;
 	}
-
-
 
 	GLenum glew_status = glewInit();
 	if (glew_status != GLEW_OK){
