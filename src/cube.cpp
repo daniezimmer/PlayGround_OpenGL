@@ -36,7 +36,7 @@ bool init_resources(void)
 
 	glGenTextures(1, &texture_id);
 	glBindTexture(GL_TEXTURE_2D, texture_id);	
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexImage2D(
 		GL_TEXTURE_2D,				// target
 		0, 							// level, 0 = base, no minimap,
@@ -255,9 +255,13 @@ void logic()
 {
 
 
-	float angle = SDL_GetTicks() / 1000.0 * 45;  // 45° per second
+	float angle = SDL_GetTicks() / 1000.0 * 15;  // 45° per second
+	glm::vec3 axis_x(1, 0, 0);
 	glm::vec3 axis_y(0, 1, 0);
-	glm::mat4 anim = glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis_y);
+	glm::vec3 axis_z(0, 0, 1);
+	glm::mat4 anim = glm::rotate(glm::mat4(1.0f), glm::radians(angle) * 3.0f, axis_y) *
+					 glm::rotate(glm::mat4(1.0f), glm::radians(angle) * 2.0f, axis_x) *
+					 glm::rotate(glm::mat4(1.0f), glm::radians(angle) * 4.0f, axis_z);
 
 
 	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0, 0.0, -4.0));
